@@ -23,6 +23,7 @@
   $: pixelsPerSecond = (tempo / 60) * PIXELS_PER_BEAT;
   export let timeSignature = { numerator: 4, denominator: 4 };
   export let editMode = 'draw';  // Current edit mode
+  export let snapSetting = '1/8';  // Snap grid setting (1/1, 1/2, 1/4, 1/8, 1/16, 1/32, none)
   export let horizontalScroll = 0;  // Horizontal scroll position
   export let verticalScroll = 0;  // Vertical scroll position
   
@@ -40,8 +41,59 @@
   const GRID_LINE_INTERVAL = NOTE_HEIGHT;  // Distance between horizontal grid lines
   const PIXELS_PER_BEAT = 80;  // How many pixels wide a beat is
   
-  // Derived grid constants based on time signature
-  $: subdivisions = getSubdivisionsFromTimeSignature(timeSignature.denominator);
+  // Get subdivisions based on time signature denominator
+  function getSubdivisionsFromTimeSignature(denominator: number): { count: number, pixelsPerSubdivision: number } {
+    // The number of subdivisions per beat depends on the denominator
+    switch (denominator) {
+      case 2: // Half note gets the beat
+        return { count: 2, pixelsPerSubdivision: PIXELS_PER_BEAT / 2 };
+      case 4: // Quarter note gets the beat
+        return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+      case 8: // Eighth note gets the beat
+        return { count: 2, pixelsPerSubdivision: PIXELS_PER_BEAT / 2 };
+      case 16: // Sixteenth note gets the beat
+        return { count: 2, pixelsPerSubdivision: PIXELS_PER_BEAT / 2 };
+      default:
+        return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+    }
+  }
+  
+  // Get subdivisions based on snap setting
+  function getSubdivisionsFromSnapSetting(): { count: number, pixelsPerSubdivision: number } {
+    if (snapSetting === 'none') {
+      // Default to quarter note subdivisions if snap is 'none'
+      return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+    }
+    
+    const [numerator, denominator] = snapSetting.split('/');
+    if (numerator === '1' && denominator) {
+      const divisionValue = parseInt(denominator);
+      
+      switch (divisionValue) {
+        case 1: // Whole note - 1 division per measure (4 beats in 4/4)
+          return { count: 1, pixelsPerSubdivision: PIXELS_PER_BEAT };
+        case 2: // Half note - 2 divisions per beat
+          return { count: 2, pixelsPerSubdivision: PIXELS_PER_BEAT / 2 };
+        case 4: // Quarter note - 4 divisions per beat
+          return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+        case 8: // Eighth note - 8 divisions per beat
+          return { count: 8, pixelsPerSubdivision: PIXELS_PER_BEAT / 8 };
+        case 16: // Sixteenth note - 16 divisions per beat
+          return { count: 16, pixelsPerSubdivision: PIXELS_PER_BEAT / 16 };
+        case 32: // Thirty-second note - 32 divisions per beat
+          return { count: 32, pixelsPerSubdivision: PIXELS_PER_BEAT / 32 };
+        default: 
+          return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+      }
+    }
+    
+    // Default to quarter note subdivisions
+    return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+  }
+  
+  // Derived grid constants based on time signature and snap setting
+  $: subdivisions = getSubdivisionsFromSnapSetting();
+  $: snapChanged = snapSetting; // Reactive variable to trigger redraw when snap changes
   
   // State
   let canvas: HTMLCanvasElement;
@@ -142,11 +194,31 @@
       creationStartTime = time;
       creationPitch = TOTAL_NOTES - 1 - pitch;
       
-      // Create a new note with minimal duration initially
+      // Calculate initial note duration based on snap setting (one beat divided by n)
+      let initialDuration = PIXELS_PER_BEAT / 4; // Default: quarter note (1/4)
+      
+      // Parse the snap setting to determine initial note duration
+      if (snapSetting !== 'none') {
+        const [numerator, denominator] = snapSetting.split('/');
+        if (numerator === '1' && denominator) {
+          const divisionValue = parseInt(denominator);
+          // Calculate duration in pixels based on snap setting
+          // For 1/1: one full beat (PIXELS_PER_BEAT)
+          // For 1/2: half beat (PIXELS_PER_BEAT / 2)
+          // For 1/4: quarter beat (PIXELS_PER_BEAT / 4)
+          // etc.
+          initialDuration = PIXELS_PER_BEAT / divisionValue;
+        }
+      } else {
+        // When snap is 'none', use a small default size
+        initialDuration = PIXELS_PER_BEAT / 8;
+      }
+      
+      // Create a new note with duration based on snap setting
       const newNote = {
         id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         start: time,
-        duration: PIXELS_PER_BEAT / 8,  // Start with a very small note
+        duration: initialDuration,
         pitch: creationPitch,
         velocity: 100,
         lyric: '라'  // Default lyric is '라'
@@ -222,10 +294,32 @@
       // Move selected notes
       notes = notes.map(note => {
         if (selectedNotes.has(note.id)) {
-          const snappedDeltaX = (Math.round(deltaX / (PIXELS_PER_BEAT / 4)) * (PIXELS_PER_BEAT / 4));
+          // Apply snap setting to horizontal movement based on current snap
+          let snappedDeltaX;
+          
+          if (snapSetting === 'none') {
+            // Without snap, move freely
+            snappedDeltaX = deltaX;
+          } else {
+            // Parse the snap setting fraction
+            let divisionValue = 4; // Default to quarter note (1/4)
+            const [numerator, denominator] = snapSetting.split('/');
+            if (numerator === '1' && denominator) {
+              divisionValue = parseInt(denominator);
+            }
+            
+            // Apply snap based on beat divisions
+            const gridSize = PIXELS_PER_BEAT / divisionValue;
+            snappedDeltaX = Math.round(deltaX / gridSize) * gridSize;
+          }
+          
+          // Calculate the new start position and snap it to grid
+          const newStart = Math.max(0, note.start + snappedDeltaX);
+          const snappedStart = snapToGrid(newStart);
+          
           return {
             ...note,
-            start: Math.max(0, note.start + snappedDeltaX),
+            start: snappedStart,
             pitch: Math.max(0, Math.min(127, note.pitch - Math.round(deltaY / NOTE_HEIGHT)))
           };
         }
@@ -241,18 +335,36 @@
         if (note.id === resizedNoteId) {
           let newDuration;
           
-          if (isCreatingNote) {
-            // For note creation, we want to resize from the start position to current mouse position
-            // Calculate the width between the original start position and current mouse position
-            const width = Math.max(PIXELS_PER_BEAT / 8, x - creationStartTime);
-            // Snap the width to grid
-            newDuration = Math.round(width / (PIXELS_PER_BEAT / 4)) * (PIXELS_PER_BEAT / 4);
-            // Ensure minimum length
-            newDuration = Math.max(PIXELS_PER_BEAT / 8, newDuration);
+          // Get the grid size based on snap setting
+          let gridSize;
+          if (snapSetting === 'none') {
+            // If snap is off, use a small default size for fine control
+            gridSize = PIXELS_PER_BEAT / 32; // Very fine control
           } else {
-            // For regular resizing, just add the delta to current duration
-            const snappedDeltaX = (Math.round(deltaX / (PIXELS_PER_BEAT / 4)) * (PIXELS_PER_BEAT / 4));
-            newDuration = Math.max(PIXELS_PER_BEAT / 8, note.duration + snappedDeltaX);
+            // Parse the snap setting fraction
+            let divisionValue = 4; // Default to quarter note (1/4)
+            const [numerator, denominator] = snapSetting.split('/');
+            if (numerator === '1' && denominator) {
+              divisionValue = parseInt(denominator);
+            }
+            // Grid size based on beat division
+            gridSize = PIXELS_PER_BEAT / divisionValue;
+          }
+          
+          if (isCreatingNote) {
+            // For note creation, resize from start position to current mouse position
+            const width = Math.max(gridSize, x - creationStartTime);
+            // Snap the width to the grid based on current snap setting
+            const snappedWidth = snapSetting === 'none' 
+              ? width 
+              : Math.round(width / gridSize) * gridSize;
+            newDuration = Math.max(gridSize, snappedWidth);
+          } else {
+            // For regular resizing, add delta to current duration with snap
+            const snappedDeltaX = snapSetting === 'none'
+              ? deltaX
+              : Math.round(deltaX / gridSize) * gridSize;
+            newDuration = Math.max(gridSize, note.duration + snappedDeltaX);
           }
           
           return {
@@ -271,10 +383,27 @@
   function handleMouseUp() {
     // Check if we're finalizing note creation
     if (isCreatingNote) {
-      // If the note is too small, remove it
+      // If the note is too small, remove it, but base minimum size on current snap setting
       if (resizedNoteId) {
         const createdNote = notes.find(note => note.id === resizedNoteId);
-        if (createdNote && createdNote.duration < PIXELS_PER_BEAT / 4) {
+        
+        // Calculate minimum note size based on snap setting
+        let minimumNoteSize;
+        if (snapSetting === 'none') {
+          minimumNoteSize = PIXELS_PER_BEAT / 32; // Tiny minimum size when snap is off
+        } else {
+          // Parse the snap setting fraction
+          let divisionValue = 4; // Default to quarter note (1/4)
+          const [numerator, denominator] = snapSetting.split('/');
+          if (numerator === '1' && denominator) {
+            divisionValue = parseInt(denominator);
+          }
+          // Set minimum size to half the grid size for the current snap setting
+          minimumNoteSize = (PIXELS_PER_BEAT / divisionValue) / 2;
+        }
+        
+        // Now check if the note is too small based on the dynamic minimum size
+        if (createdNote && createdNote.duration < minimumNoteSize) {
           // Remove notes that are too small (likely accidental clicks)
           notes = notes.filter(note => note.id !== resizedNoteId);
           dispatch('noteChange', { notes });
@@ -369,26 +498,6 @@
     }
   }
   
-  // Calculate appropriate subdivisions based on time signature denominator
-  function getSubdivisionsFromTimeSignature(denominator: number): { count: number, pixelsPerSubdivision: number } {
-    // The number of subdivisions per beat depends on the denominator
-    // For example, in 4/4, we want 4 subdivisions (16th notes)
-    // In 4/8, we want 3 subdivisions (triplets work well)
-    // In 4/2, we want 2 subdivisions (8th notes)
-    switch (denominator) {
-      case 2: // Half note gets the beat
-        return { count: 2, pixelsPerSubdivision: PIXELS_PER_BEAT / 2 };
-      case 4: // Quarter note gets the beat
-        return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
-      case 8: // Eighth note gets the beat
-        return { count: 3, pixelsPerSubdivision: PIXELS_PER_BEAT / 3 }; // Triplets
-      case 16: // Sixteenth note gets the beat
-        return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
-      default:
-        return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 }; // Default to 16th notes
-    }
-  }
-  
   // Helper to find a note at a specific position
   function findNoteAtPosition(x: number, y: number) {
     const pitch = TOTAL_NOTES - 1 - Math.floor(y / NOTE_HEIGHT);
@@ -404,9 +513,33 @@
     });
   }
   
-  // Snap value to grid based on current beat division
+  // Snap value to grid based on selected snap setting
   function snapToGrid(value: number) {
-    const gridSize = PIXELS_PER_BEAT / 4; // 16th note grid
+    // If snap is set to 'none', return the exact value
+    if (snapSetting === 'none') {
+      return value;
+    }
+    
+    // Parse the snap setting fraction
+    let divisionValue = 4; // Default to quarter note (1/4)
+    
+    if (snapSetting !== 'none') {
+      const [numerator, denominator] = snapSetting.split('/');
+      if (numerator === '1' && denominator) {
+        divisionValue = parseInt(denominator);
+      }
+    }
+    
+    // Calculate grid size based on the snap setting
+    // Dividing one beat by the division value
+    // For 1/1: Full beat, so gridSize = PIXELS_PER_BEAT
+    // For 1/2: Half beat, so gridSize = PIXELS_PER_BEAT / 2
+    // For 1/4: Quarter beat, so gridSize = PIXELS_PER_BEAT / 4
+    // For 1/8: Eighth beat, so gridSize = PIXELS_PER_BEAT / 8
+    // For 1/16: Sixteenth beat, so gridSize = PIXELS_PER_BEAT / 16
+    // For 1/32: Thirty-second beat, so gridSize = PIXELS_PER_BEAT / 32
+    const gridSize = PIXELS_PER_BEAT / divisionValue;
+    
     return Math.round(value / gridSize) * gridSize;
   }
   
@@ -459,19 +592,57 @@
         ctx.stroke();
       }
       
-      // Draw subdivision lines based on time signature
-      for (let beat = 0; beat < beatsPerMeasure; beat++) {
-        // Subdivisions based on time signature denominator
-        for (let tick = 1; tick < subdivisions.count; tick++) {
-          const tickX = measureX + beat * PIXELS_PER_BEAT + tick * subdivisions.pixelsPerSubdivision;
-          
-          ctx.strokeStyle = GRID_COLOR;
-          ctx.lineWidth = 0.5;
-          ctx.beginPath();
-          ctx.moveTo(tickX, 0);
-          ctx.lineTo(tickX, height);
-          ctx.stroke();
+      // For 1/1 snap setting, don't show additional subdivision lines
+      if (snapSetting === '1/1') {
+        // Just draw beat lines, no subdivisions
+        continue;
+      }
+      
+      // Calculate the number of divisions per measure based on snap setting
+      let divisionsPerMeasure = 0;
+      let pixelsPerDivision = 0;
+      
+      switch (snapSetting) {
+        case '1/2':
+          divisionsPerMeasure = beatsPerMeasure * 2; // 8 divisions in 4/4
+          pixelsPerDivision = pixelsPerMeasure / divisionsPerMeasure;
+          break;
+        case '1/4':
+          divisionsPerMeasure = beatsPerMeasure * 4; // 16 divisions in 4/4
+          pixelsPerDivision = pixelsPerMeasure / divisionsPerMeasure;
+          break;
+        case '1/8':
+          divisionsPerMeasure = beatsPerMeasure * 8; // 32 divisions in 4/4
+          pixelsPerDivision = pixelsPerMeasure / divisionsPerMeasure;
+          break;
+        case '1/16':
+          divisionsPerMeasure = beatsPerMeasure * 16; // 64 divisions in 4/4
+          pixelsPerDivision = pixelsPerMeasure / divisionsPerMeasure;
+          break;
+        case '1/32':
+          divisionsPerMeasure = beatsPerMeasure * 32; // 128 divisions in 4/4
+          pixelsPerDivision = pixelsPerMeasure / divisionsPerMeasure;
+          break;
+        default:
+          divisionsPerMeasure = beatsPerMeasure * 4; // Default to quarter notes
+          pixelsPerDivision = pixelsPerMeasure / divisionsPerMeasure;
+      }
+      
+      // Draw subdivision lines
+      for (let division = 1; division < divisionsPerMeasure; division++) {
+        // Skip if this is already a beat line
+        if (division % (divisionsPerMeasure / beatsPerMeasure) === 0) {
+          continue; // This is a beat line, already drawn
         }
+        
+        const divisionX = measureX + division * pixelsPerDivision;
+        
+        ctx.strokeStyle = GRID_COLOR;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(divisionX, 0);
+        ctx.lineTo(divisionX, height);
+        ctx.stroke();
       }
     }
     
@@ -597,6 +768,12 @@
   // Redraw when time signature changes
   $: if (timeSignature && ctx && canvas) {
     // This will reactively update when timeSignature.numerator or denominator changes
+    drawGrid();
+  }
+  
+  // Redraw when snap setting changes
+  $: if (snapChanged && ctx && canvas) {
+    // This will reactively update when snapSetting changes
     drawGrid();
   }
 </script>

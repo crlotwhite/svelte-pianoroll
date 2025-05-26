@@ -29,6 +29,7 @@
   export let tempo = 120;
   export let timeSignature = { numerator: 4, denominator: 4 };
   export let editMode = 'draw'; // 'draw', 'erase', 'select', etc.
+  export let snapSetting = '1/8'; // Default snap setting: 1/8
   
   // Scroll positions
   let horizontalScroll = 0;
@@ -43,6 +44,19 @@
     verticalScroll = event.detail.verticalScroll;
     // The scroll values are now reactively bound to the other components
     // and will trigger updates when they change
+  }
+  
+  // Settings handlers
+  function handleTimeSignatureChange(event: CustomEvent) {
+    timeSignature = event.detail;
+  }
+  
+  function handleEditModeChange(event: CustomEvent) {
+    editMode = event.detail;
+  }
+  
+  function handleSnapChange(event: CustomEvent) {
+    snapSetting = event.detail;
   }
   
   onMount(() => {
@@ -63,9 +77,11 @@
     {tempo}
     {timeSignature}
     {editMode}
+    {snapSetting}
     on:tempoChange={(e) => tempo = e.detail}
-    on:timeSignatureChange={(e) => timeSignature = e.detail}
-    on:editModeChange={(e) => editMode = e.detail}
+    on:timeSignatureChange={handleTimeSignatureChange}
+    on:editModeChange={handleEditModeChange}
+    on:snapChange={handleSnapChange}
   />
   
   <div class="piano-roll-main" style="height: {height - 40}px;">
@@ -75,6 +91,7 @@
         width={width - keyboardWidth}
         {timelineHeight}
         {timeSignature}
+        {snapSetting}
         {horizontalScroll}
       />
     </div>
@@ -94,6 +111,7 @@
         {tempo}
         {timeSignature}
         {editMode}
+        {snapSetting}
         {horizontalScroll}
         {verticalScroll}
         on:scroll={handleGridScroll}

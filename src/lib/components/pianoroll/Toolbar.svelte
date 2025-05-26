@@ -7,6 +7,7 @@
   export let tempo = 120;
   export let timeSignature = { numerator: 4, denominator: 4 };
   export let editMode = 'draw'; // 'draw', 'erase', 'select', etc.
+  export let snapSetting = '1/8'; // Default snap setting
   
   const dispatch = createEventDispatcher();
   
@@ -21,6 +22,9 @@
   const numeratorOptions = [2, 3, 4, 5, 6, 7, 9, 12];
   const denominatorOptions = [2, 4, 8, 16];
   
+  // Snap options
+  const snapOptions = ['1/1', '1/2', '1/4', '1/8', '1/16', '1/32', 'none'];
+  
   function updateTempo(event: Event) {
     const newTempo = parseInt((event.target as HTMLInputElement).value);
     dispatch('tempoChange', newTempo);
@@ -32,6 +36,11 @@
   
   function setEditMode(mode: string) {
     dispatch('editModeChange', mode);
+  }
+  
+  function updateSnapSetting(event: Event) {
+    const newSnapSetting = (event.target as HTMLSelectElement).value;
+    dispatch('snapChange', newSnapSetting);
   }
 </script>
 
@@ -53,27 +62,40 @@
     </div>
     
     <div class="time-signature-control">
-      <label id="time-signature-label">Signature</label>
-      <div class="time-signature-input-group" aria-labelledby="time-signature-label">
+      <div class="time-signature-wrapper">
+        <label for="time-signature-numerator" class="label">Signature</label>
         <select 
-          id="time-sig-numerator"
-          bind:value={timeSignature.numerator} 
+          id="time-signature-numerator"
+          bind:value={timeSignature.numerator}
           on:change={updateTimeSignature}
-          aria-label="Time Signature Numerator"
         >
           {#each numeratorOptions as num}
             <option value={num}>{num}</option>
           {/each}
         </select>
-        <span class="divider" aria-hidden="true">/</span>
+        <span class="divider">/</span>
         <select 
-          id="time-sig-denominator"
-          bind:value={timeSignature.denominator} 
+          id="time-signature-denominator"
+          bind:value={timeSignature.denominator}
           on:change={updateTimeSignature}
-          aria-label="Time Signature Denominator"
         >
           {#each denominatorOptions as denom}
             <option value={denom}>{denom}</option>
+          {/each}
+        </select>
+      </div>
+    </div>
+    
+    <div class="snap-control-container">
+      <label for="snap-setting" class="label">Snap</label>
+      <div class="snap-control">
+        <select 
+          id="snap-setting"
+          bind:value={snapSetting}
+          on:change={updateSnapSetting}
+        >
+          {#each snapOptions as snap}
+            <option value={snap}>{snap}</option>
           {/each}
         </select>
       </div>
@@ -125,9 +147,10 @@
     margin-right: 16px;
   }
   
-  .tempo-input-group, .time-signature-input-group {
+  .tempo-input-group, .time-signature-wrapper {
     display: flex;
     align-items: center;
+    gap: 4px;
   }
   
   input, select {
@@ -151,7 +174,8 @@
     align-items: center;
   }
   
-  .edit-mode-label {
+  .edit-mode-label,
+  .label {
     font-size: 12px;
     color: #ccc;
     margin-right: 8px;
@@ -160,6 +184,17 @@
   .edit-mode-buttons {
     display: flex;
     gap: 4px;
+  }
+  
+  .snap-control-container {
+    display: flex;
+    align-items: center;
+    margin-left: 16px;
+  }
+  
+  .snap-control {
+    display: flex;
+    align-items: center;
   }
   
   .edit-mode-button {
