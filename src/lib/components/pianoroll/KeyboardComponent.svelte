@@ -201,6 +201,11 @@
       drawKeyboard();
     }
   }
+  
+  // Specifically update when vertical scroll changes
+  $: if (verticalScroll !== undefined && ctx && canvas) {
+    drawKeyboard();
+  }
 </script>
 
 <canvas 

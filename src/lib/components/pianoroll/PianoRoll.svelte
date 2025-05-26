@@ -41,6 +41,8 @@
   function handleGridScroll(event: CustomEvent) {
     horizontalScroll = event.detail.horizontalScroll;
     verticalScroll = event.detail.verticalScroll;
+    // The scroll values are now reactively bound to the other components
+    // and will trigger updates when they change
   }
   
   onMount(() => {

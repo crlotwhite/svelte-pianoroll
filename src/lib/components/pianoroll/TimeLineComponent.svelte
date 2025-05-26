@@ -111,13 +111,18 @@
     drawTimeline();
   });
   
-  // Update when props change
+  // Update when props change (width, height, etc.)
   $: {
     if (ctx && canvas) {
       canvas.width = width;
       canvas.height = timelineHeight;
       drawTimeline();
     }
+  }
+  
+  // Specifically redraw when horizontal scroll changes
+  $: if (horizontalScroll !== undefined && ctx && canvas) {
+    drawTimeline();
   }
 </script>
 
