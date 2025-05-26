@@ -550,6 +550,22 @@
     }
   }
   
+  // Calculate the initial scroll position to center A3
+  function calculateInitialScrollPosition() {
+    // MIDI note number for A3 is 57 (9 semitones above C3 which is 48)
+    const A3_MIDI_NOTE = 57;
+    
+    // Calculate the position of A3 in the grid
+    const A3_INDEX = TOTAL_NOTES - 1 - A3_MIDI_NOTE;
+    const A3_POSITION = A3_INDEX * NOTE_HEIGHT;
+    
+    // Calculate scroll position to center A3 vertically
+    // Subtract half the grid height to center it
+    const centeredScrollPosition = Math.max(0, A3_POSITION - (height / 2));
+    
+    return centeredScrollPosition;
+  }
+  
   // Set up the component
   onMount(() => {
     // Get canvas context
@@ -558,6 +574,12 @@
     // Set up canvas size
     canvas.width = width;
     canvas.height = height;
+    
+    // Set initial scroll position to center C3
+    verticalScroll = calculateInitialScrollPosition();
+    
+    // Notify parent of scroll position
+    dispatch('scroll', { horizontalScroll, verticalScroll });
     
     // Draw initial grid
     drawGrid();

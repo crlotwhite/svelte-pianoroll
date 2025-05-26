@@ -193,6 +193,9 @@
     
     // Initialize audio
     initAudio();
+    
+    // Note: We don't need to set the initial scroll position here
+    // as it will be controlled by the GridComponent through the verticalScroll prop
   });
   
   // Update when props change
