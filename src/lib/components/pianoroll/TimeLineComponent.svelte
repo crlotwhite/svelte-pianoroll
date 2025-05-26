@@ -13,6 +13,26 @@
   // Constants
   const PIXELS_PER_BEAT = 80;  // Should match GridComponent
   
+  // Calculate appropriate subdivisions based on time signature denominator
+  function getSubdivisionsFromTimeSignature(denominator: number): { count: number, pixelsPerSubdivision: number } {
+    // The number of subdivisions per beat depends on the denominator
+    switch (denominator) {
+      case 2: // Half note gets the beat
+        return { count: 2, pixelsPerSubdivision: PIXELS_PER_BEAT / 2 };
+      case 4: // Quarter note gets the beat
+        return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+      case 8: // Eighth note gets the beat
+        return { count: 3, pixelsPerSubdivision: PIXELS_PER_BEAT / 3 }; // Triplets
+      case 16: // Sixteenth note gets the beat
+        return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+      default:
+        return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 }; // Default to 16th notes
+    }
+  }
+  
+  // Derived grid constants based on time signature
+  $: subdivisions = getSubdivisionsFromTimeSignature(timeSignature.denominator);
+  
   // DOM References
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
@@ -79,10 +99,10 @@
         ctx.fillText((beat + 1).toString(), beatX, timelineHeight - 5);
       }
       
-      // Draw subdivision ticks (16th notes)
+      // Draw subdivision ticks based on time signature
       for (let beat = 0; beat < beatsPerMeasure; beat++) {
-        for (let tick = 1; tick < 4; tick++) {
-          const tickX = measureX + beat * PIXELS_PER_BEAT + tick * (PIXELS_PER_BEAT / 4);
+        for (let tick = 1; tick < subdivisions.count; tick++) {
+          const tickX = measureX + beat * PIXELS_PER_BEAT + tick * subdivisions.pixelsPerSubdivision;
           
           ctx.strokeStyle = '#555555';
           ctx.lineWidth = 0.5;
@@ -118,6 +138,12 @@
       canvas.height = timelineHeight;
       drawTimeline();
     }
+  }
+  
+  // Redraw when time signature changes
+  $: if (timeSignature && ctx && canvas) {
+    // This will reactively update when timeSignature.numerator or denominator changes
+    drawTimeline();
   }
   
   // Specifically redraw when horizontal scroll changes

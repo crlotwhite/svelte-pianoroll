@@ -40,6 +40,9 @@
   const GRID_LINE_INTERVAL = NOTE_HEIGHT;  // Distance between horizontal grid lines
   const PIXELS_PER_BEAT = 80;  // How many pixels wide a beat is
   
+  // Derived grid constants based on time signature
+  $: subdivisions = getSubdivisionsFromTimeSignature(timeSignature.denominator);
+  
   // State
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
@@ -146,7 +149,7 @@
         duration: PIXELS_PER_BEAT / 8,  // Start with a very small note
         pitch: creationPitch,
         velocity: 100,
-        lyric: ''
+        lyric: '라'  // Default lyric is '라'
       };
       
       // Add note to the collection
@@ -366,6 +369,26 @@
     }
   }
   
+  // Calculate appropriate subdivisions based on time signature denominator
+  function getSubdivisionsFromTimeSignature(denominator: number): { count: number, pixelsPerSubdivision: number } {
+    // The number of subdivisions per beat depends on the denominator
+    // For example, in 4/4, we want 4 subdivisions (16th notes)
+    // In 4/8, we want 3 subdivisions (triplets work well)
+    // In 4/2, we want 2 subdivisions (8th notes)
+    switch (denominator) {
+      case 2: // Half note gets the beat
+        return { count: 2, pixelsPerSubdivision: PIXELS_PER_BEAT / 2 };
+      case 4: // Quarter note gets the beat
+        return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+      case 8: // Eighth note gets the beat
+        return { count: 3, pixelsPerSubdivision: PIXELS_PER_BEAT / 3 }; // Triplets
+      case 16: // Sixteenth note gets the beat
+        return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+      default:
+        return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 }; // Default to 16th notes
+    }
+  }
+  
   // Helper to find a note at a specific position
   function findNoteAtPosition(x: number, y: number) {
     const pitch = TOTAL_NOTES - 1 - Math.floor(y / NOTE_HEIGHT);
@@ -436,10 +459,11 @@
         ctx.stroke();
       }
       
-      // Draw subdivision lines (16th notes)
+      // Draw subdivision lines based on time signature
       for (let beat = 0; beat < beatsPerMeasure; beat++) {
-        for (let tick = 1; tick < 4; tick++) {
-          const tickX = measureX + beat * PIXELS_PER_BEAT + tick * (PIXELS_PER_BEAT / 4);
+        // Subdivisions based on time signature denominator
+        for (let tick = 1; tick < subdivisions.count; tick++) {
+          const tickX = measureX + beat * PIXELS_PER_BEAT + tick * subdivisions.pixelsPerSubdivision;
           
           ctx.strokeStyle = GRID_COLOR;
           ctx.lineWidth = 0.5;
@@ -546,6 +570,12 @@
       canvas.height = height;
       drawGrid();
     }
+  }
+  
+  // Redraw when time signature changes
+  $: if (timeSignature && ctx && canvas) {
+    // This will reactively update when timeSignature.numerator or denominator changes
+    drawGrid();
   }
 </script>
 

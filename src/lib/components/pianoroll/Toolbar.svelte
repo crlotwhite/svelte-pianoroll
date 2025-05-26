@@ -53,7 +53,7 @@
     </div>
     
     <div class="time-signature-control">
-      <label id="time-signature-label">Time</label>
+      <label id="time-signature-label">Signature</label>
       <div class="time-signature-input-group" aria-labelledby="time-signature-label">
         <select 
           id="time-sig-numerator"
