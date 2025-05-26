@@ -53,6 +53,12 @@
   let draggedNoteId: string | null = null;
   let resizedNoteId: string | null = null;
   
+  // Lyric editing state
+  let isEditingLyric = false;
+  let editedNoteId: string | null = null;
+  let lyricInputValue = '';
+  let lyricInputPosition = { x: 0, y: 0, width: 0 };
+  
   const dispatch = createEventDispatcher();
   
   // Calculate various dimensions and metrics
@@ -239,6 +245,80 @@
     resizedNoteId = null;
   }
   
+  // Handle double-click to edit lyrics
+  function handleDoubleClick(event: MouseEvent) {
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left + horizontalScroll;
+    const y = event.clientY - rect.top + verticalScroll;
+    
+    // Find the note that was double-clicked
+    const clickedNote = findNoteAtPosition(x, y);
+    
+    if (clickedNote) {
+      // Set up lyric editing state
+      editedNoteId = clickedNote.id;
+      lyricInputValue = clickedNote.lyric || '';
+      
+      // Calculate position for the input field
+      const noteY = (TOTAL_NOTES - 1 - clickedNote.pitch) * NOTE_HEIGHT - verticalScroll;
+      
+      lyricInputPosition = {
+        x: clickedNote.start - horizontalScroll,
+        y: noteY,
+        width: clickedNote.duration
+      };
+      
+      isEditingLyric = true;
+      
+      // Set a timeout to focus the input element once it's rendered
+      setTimeout(() => {
+        const input = document.getElementById('lyric-input');
+        if (input) {
+          input.focus();
+        }
+      }, 10);
+    }
+  }
+  
+  // Save the edited lyric
+  function saveLyric() {
+    if (!editedNoteId) return;
+    
+    // Update the note with the new lyric
+    notes = notes.map(note => {
+      if (note.id === editedNoteId) {
+        return {
+          ...note,
+          lyric: lyricInputValue
+        };
+      }
+      return note;
+    });
+    
+    // Reset editing state
+    isEditingLyric = false;
+    editedNoteId = null;
+    
+    // Notify parent of note changes
+    dispatch('noteChange', { notes });
+    
+    // Redraw with updated lyrics
+    drawGrid();
+  }
+  
+  // Handle keydown in the lyric input
+  function handleLyricInputKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter') {
+      saveLyric();
+    } else if (event.key === 'Escape') {
+      // Cancel editing
+      isEditingLyric = false;
+      editedNoteId = null;
+    }
+  }
+  
   // Helper to find a note at a specific position
   function findNoteAtPosition(x: number, y: number) {
     const pitch = TOTAL_NOTES - 1 - Math.floor(y / NOTE_HEIGHT);
@@ -422,21 +502,72 @@
   }
 </script>
 
-<canvas 
-  bind:this={canvas} 
-  width={width} 
-  height={height}
-  on:wheel={handleScroll}
-  on:mousedown={handleMouseDown}
-  on:mousemove={handleMouseMove}
-  on:mouseup={handleMouseUp}
-  on:mouseleave={handleMouseUp}
-  class="grid-canvas"
-></canvas>
+<div class="grid-container">
+  <canvas 
+    bind:this={canvas} 
+    width={width} 
+    height={height}
+    on:wheel={handleScroll}
+    on:mousedown={handleMouseDown}
+    on:mousemove={handleMouseMove}
+    on:mouseup={handleMouseUp}
+    on:mouseleave={handleMouseUp}
+    on:dblclick={handleDoubleClick}
+    class="grid-canvas"
+  ></canvas>
+  
+  {#if isEditingLyric}
+    <div 
+      class="lyric-input-container"
+      style="
+        left: {lyricInputPosition.x}px;
+        top: {lyricInputPosition.y}px;
+        width: {lyricInputPosition.width}px;
+      "
+    >
+      <input 
+        id="lyric-input"
+        type="text" 
+        bind:value={lyricInputValue}
+        on:keydown={handleLyricInputKeydown}
+        on:blur={saveLyric}
+        class="lyric-input"
+        aria-label="노트 가사 편집"
+      />
+    </div>
+  {/if}
+</div>
 
 <style>
+  .grid-container {
+    position: relative;
+    height: 100%;
+  }
+  
   .grid-canvas {
     display: block;
     cursor: crosshair;
+  }
+  
+  .lyric-input-container {
+    position: absolute;
+    z-index: 10;
+  }
+  
+  .lyric-input {
+    width: 100%;
+    height: 18px;
+    background-color: #fff;
+    border: 1px solid #1976D2;
+    border-radius: 2px;
+    font-size: 10px;
+    padding: 0 4px;
+    color: #333;
+    box-sizing: border-box;
+  }
+  
+  .lyric-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.4);
   }
 </style>

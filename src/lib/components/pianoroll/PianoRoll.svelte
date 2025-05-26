@@ -69,18 +69,22 @@
   />
   
   <div class="piano-roll-main" style="height: {height - 40}px;">
-    <KeyboardComponent 
-      {keyboardWidth}
-      height={height - 40 - timelineHeight}
-      {verticalScroll}
-    />
-    
-    <div class="grid-and-timeline">
+    <!-- Timeline positioned at the top -->
+    <div class="timeline-container" style="margin-left: {keyboardWidth}px;">
       <TimeLineComponent
         width={width - keyboardWidth}
         {timelineHeight}
         {timeSignature}
         {horizontalScroll}
+      />
+    </div>
+    
+    <!-- Main content area with keyboard and grid aligned -->
+    <div class="content-container">
+      <KeyboardComponent 
+        {keyboardWidth}
+        height={height - 40 - timelineHeight}
+        {verticalScroll}
       />
       
       <GridComponent
@@ -112,13 +116,18 @@
   
   .piano-roll-main {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     flex: 1;
   }
   
-  .grid-and-timeline {
+  .timeline-container {
     display: flex;
-    flex-direction: column;
+    height: var(--timeline-height, 40px);
+  }
+  
+  .content-container {
+    display: flex;
+    flex-direction: row;
     flex: 1;
   }
 </style>
