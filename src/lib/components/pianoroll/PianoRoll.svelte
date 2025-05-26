@@ -28,8 +28,8 @@
   // Settings
   export let tempo = 120;
   export let timeSignature = { numerator: 4, denominator: 4 };
-  export let editMode = 'draw'; // 'draw', 'erase', 'select', etc.
-  export let snapSetting = '1/8'; // Default snap setting: 1/8
+  export let editMode = 'select'; // 'select', 'draw', 'erase', etc.
+  export let snapSetting = '1/4'; // Default snap setting: 1/4
   
   // Scroll positions
   let horizontalScroll = 0;

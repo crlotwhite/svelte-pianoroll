@@ -6,16 +6,16 @@
   
   export let tempo = 120;
   export let timeSignature = { numerator: 4, denominator: 4 };
-  export let editMode = 'draw'; // 'draw', 'erase', 'select', etc.
-  export let snapSetting = '1/8'; // Default snap setting
+  export let editMode = 'select'; // 'select', 'draw', 'erase', etc.
+  export let snapSetting = '1/4'; // Default snap setting
   
   const dispatch = createEventDispatcher();
   
   // Edit mode options
   const editModes = [
+    { id: 'select', label: 'Select', icon: '👆' },
     { id: 'draw', label: 'Draw', icon: '✏️' },
     { id: 'erase', label: 'Erase', icon: '🧹' },
-    { id: 'select', label: 'Select', icon: '👆' },
   ];
   
   // Time signature numerator and denominator options
