@@ -45,6 +45,7 @@
   let ctx: CanvasRenderingContext2D | null = null;
   let isDragging = false;
   let isResizing = false;
+  let isCreatingNote = false;
   let selectedNotes: Set<string> = new Set();
   let dragStartX = 0;
   let dragStartY = 0;
@@ -52,6 +53,8 @@
   let lastMouseY = 0;
   let draggedNoteId: string | null = null;
   let resizedNoteId: string | null = null;
+  let creationStartTime = 0;
+  let creationPitch = 0;
   
   // Lyric editing state
   let isEditingLyric = false;
@@ -128,23 +131,32 @@
     const clickedNote = findNoteAtPosition(x, y);
     
     if (editMode === 'draw' && !clickedNote) {
-      // Create a new note
+      // Start note creation process
       const pitch = Math.floor(y / NOTE_HEIGHT);
       const time = snapToGrid(x);
       
+      // Store the starting position and pitch for the new note
+      creationStartTime = time;
+      creationPitch = TOTAL_NOTES - 1 - pitch;
+      
+      // Create a new note with minimal duration initially
       const newNote = {
         id: `note-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         start: time,
-        duration: PIXELS_PER_BEAT / 2,  // Default to 1/8 note
-        pitch: TOTAL_NOTES - 1 - pitch,
+        duration: PIXELS_PER_BEAT / 8,  // Start with a very small note
+        pitch: creationPitch,
         velocity: 100,
         lyric: ''
       };
       
+      // Add note to the collection
       notes = [...notes, newNote];
+      
+      // Set note as selected and being resized
       selectedNotes = new Set([newNote.id]);
-      draggedNoteId = newNote.id;
-      isDragging = true;
+      resizedNoteId = newNote.id;  // We're resizing, not dragging
+      isCreatingNote = true;       // Flag that we're in note creation mode
+      isResizing = true;          // Enable resizing mode
       
       dispatch('noteChange', { notes });
     } 
@@ -224,10 +236,25 @@
       // Resize note
       notes = notes.map(note => {
         if (note.id === resizedNoteId) {
-          const snappedDeltaX = (Math.round(deltaX / (PIXELS_PER_BEAT / 4)) * (PIXELS_PER_BEAT / 4));
+          let newDuration;
+          
+          if (isCreatingNote) {
+            // For note creation, we want to resize from the start position to current mouse position
+            // Calculate the width between the original start position and current mouse position
+            const width = Math.max(PIXELS_PER_BEAT / 8, x - creationStartTime);
+            // Snap the width to grid
+            newDuration = Math.round(width / (PIXELS_PER_BEAT / 4)) * (PIXELS_PER_BEAT / 4);
+            // Ensure minimum length
+            newDuration = Math.max(PIXELS_PER_BEAT / 8, newDuration);
+          } else {
+            // For regular resizing, just add the delta to current duration
+            const snappedDeltaX = (Math.round(deltaX / (PIXELS_PER_BEAT / 4)) * (PIXELS_PER_BEAT / 4));
+            newDuration = Math.max(PIXELS_PER_BEAT / 8, note.duration + snappedDeltaX);
+          }
+          
           return {
             ...note,
-            duration: Math.max(PIXELS_PER_BEAT / 8, note.duration + snappedDeltaX)
+            duration: newDuration
           };
         }
         return note;
@@ -239,10 +266,30 @@
   }
   
   function handleMouseUp() {
+    // Check if we're finalizing note creation
+    if (isCreatingNote) {
+      // If the note is too small, remove it
+      if (resizedNoteId) {
+        const createdNote = notes.find(note => note.id === resizedNoteId);
+        if (createdNote && createdNote.duration < PIXELS_PER_BEAT / 4) {
+          // Remove notes that are too small (likely accidental clicks)
+          notes = notes.filter(note => note.id !== resizedNoteId);
+          dispatch('noteChange', { notes });
+        }
+      }
+      
+      // Reset creation state
+      isCreatingNote = false;
+    }
+    
+    // Reset interaction states
     isDragging = false;
     isResizing = false;
     draggedNoteId = null;
     resizedNoteId = null;
+    
+    // Redraw the grid
+    drawGrid();
   }
   
   // Handle double-click to edit lyrics
