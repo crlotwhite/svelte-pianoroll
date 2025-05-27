@@ -217,7 +217,11 @@
     {editMode}
     {snapSetting}
     {isPlaying}
-    on:tempoChange={(e) => tempo = e.detail}
+    on:tempoChange={(e) => {
+      tempo = e.detail;
+      // Re-render audio when tempo changes
+      renderAudio();
+    }}
     on:timeSignatureChange={handleTimeSignatureChange}
     on:editModeChange={handleEditModeChange}
     on:snapChange={handleSnapChange}
