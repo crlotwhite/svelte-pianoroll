@@ -2,7 +2,7 @@
   TimeLineComponent that displays measures and beats timeline.
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
   
   // Props
   export let width = 880;  // Width of the timeline (same as grid width)
@@ -10,24 +10,25 @@
   export let timeSignature = { numerator: 4, denominator: 4 };
   export let snapSetting = '1/8';  // Snap grid setting (1/1, 1/2, 1/4, 1/8, 1/16, 1/32, none)
   export let horizontalScroll = 0;  // Horizontal scroll position synced with GridComponent
+  export let pixelsPerBeat = 80;  // Pixels per beat (controls zoom level)
   
-  // Constants
-  const PIXELS_PER_BEAT = 80;  // Should match GridComponent
+  // Set up event dispatcher
+  const dispatch = createEventDispatcher();
   
   // Calculate appropriate subdivisions based on time signature denominator
   function getSubdivisionsFromTimeSignature(denominator: number): { count: number, pixelsPerSubdivision: number } {
     // The number of subdivisions per beat depends on the denominator
     switch (denominator) {
       case 2: // Half note gets the beat
-        return { count: 2, pixelsPerSubdivision: PIXELS_PER_BEAT / 2 };
+        return { count: 2, pixelsPerSubdivision: pixelsPerBeat / 2 };
       case 4: // Quarter note gets the beat
-        return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+        return { count: 4, pixelsPerSubdivision: pixelsPerBeat / 4 };
       case 8: // Eighth note gets the beat
-        return { count: 2, pixelsPerSubdivision: PIXELS_PER_BEAT / 2 };
+        return { count: 2, pixelsPerSubdivision: pixelsPerBeat / 2 };
       case 16: // Sixteenth note gets the beat
-        return { count: 2, pixelsPerSubdivision: PIXELS_PER_BEAT / 2 };
+        return { count: 2, pixelsPerSubdivision: pixelsPerBeat / 2 };
       default:
-        return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 }; // Default to 16th notes
+        return { count: 4, pixelsPerSubdivision: pixelsPerBeat / 4 }; // Default to 16th notes
     }
   }
   
@@ -35,7 +36,7 @@
   function getSubdivisionsFromSnapSetting(): { count: number, pixelsPerSubdivision: number } {
     if (snapSetting === 'none') {
       // Default to quarter note subdivisions if snap is 'none'
-      return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+      return { count: 4, pixelsPerSubdivision: pixelsPerBeat / 4 };
     }
     
     const [numerator, denominator] = snapSetting.split('/');
@@ -44,24 +45,24 @@
       
       switch (divisionValue) {
         case 1: // Whole note
-          return { count: 1, pixelsPerSubdivision: PIXELS_PER_BEAT * 4 };
+          return { count: 1, pixelsPerSubdivision: pixelsPerBeat * 4 };
         case 2: // Half note
-          return { count: 2, pixelsPerSubdivision: PIXELS_PER_BEAT * 2 };
+          return { count: 2, pixelsPerSubdivision: pixelsPerBeat * 2 };
         case 4: // Quarter note
-          return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT };
+          return { count: 4, pixelsPerSubdivision: pixelsPerBeat };
         case 8: // Eighth note
-          return { count: 8, pixelsPerSubdivision: PIXELS_PER_BEAT / 2 };
+          return { count: 8, pixelsPerSubdivision: pixelsPerBeat / 2 };
         case 16: // Sixteenth note
-          return { count: 16, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+          return { count: 16, pixelsPerSubdivision: pixelsPerBeat / 4 };
         case 32: // Thirty-second note
-          return { count: 32, pixelsPerSubdivision: PIXELS_PER_BEAT / 8 };
+          return { count: 32, pixelsPerSubdivision: pixelsPerBeat / 8 };
         default: 
-          return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+          return { count: 4, pixelsPerSubdivision: pixelsPerBeat / 4 };
       }
     }
     
     // Default to quarter note subdivisions
-    return { count: 4, pixelsPerSubdivision: PIXELS_PER_BEAT / 4 };
+    return { count: 4, pixelsPerSubdivision: pixelsPerBeat / 4 };
   }
   
   // Derived grid constants based on time signature
@@ -73,7 +74,7 @@
   
   // Calculate various dimensions
   $: beatsPerMeasure = timeSignature.numerator;
-  $: pixelsPerMeasure = beatsPerMeasure * PIXELS_PER_BEAT;
+  $: pixelsPerMeasure = beatsPerMeasure * pixelsPerBeat;
   $: totalMeasures = 32;  // Should match GridComponent
   $: totalTimelineWidth = totalMeasures * pixelsPerMeasure;
   
@@ -119,7 +120,7 @@
       
       // Draw beat lines within measure
       for (let beat = 1; beat < beatsPerMeasure; beat++) {
-        const beatX = measureX + beat * PIXELS_PER_BEAT;
+        const beatX = measureX + beat * pixelsPerBeat;
         
         ctx.strokeStyle = '#777777';
         ctx.lineWidth = 1;
@@ -219,19 +220,71 @@
   $: if (horizontalScroll !== undefined && ctx && canvas) {
     drawTimeline();
   }
+  
+  // Redraw when zoom level (pixelsPerBeat) changes
+  $: if (pixelsPerBeat && ctx && canvas) {
+    // This will reactively update when pixelsPerBeat changes
+    drawTimeline();
+  }
 </script>
 
-<canvas 
-  bind:this={canvas} 
-  width={width} 
-  height={timelineHeight}
-  class="timeline-canvas"
-></canvas>
+<div class="timeline-container" style="width: {width}px; height: {timelineHeight}px;">
+  <!-- Zoom controls -->
+  <div class="zoom-controls">
+    <button class="zoom-button zoom-out" on:click={() => dispatch('zoomChange', { action: 'zoom-out' })} aria-label="Zoom out">
+      <svg viewBox="0 0 24 24" width="16" height="16">
+        <path d="M15,3C8.373,3,3,8.373,3,15c0,6.627,5.373,12,12,12s12-5.373,12-12C27,8.373,21.627,3,15,3z M21,16H9v-2h12V16z" fill="currentColor"/>
+      </svg>
+    </button>
+    <button class="zoom-button zoom-in" on:click={() => dispatch('zoomChange', { action: 'zoom-in' })} aria-label="Zoom in">
+      <svg viewBox="0 0 24 24" width="16" height="16">
+        <path d="M15,3C8.373,3,3,8.373,3,15c0,6.627,5.373,12,12,12s12-5.373,12-12C27,8.373,21.627,3,15,3z M21,16h-5v5h-2v-5H9v-2h5V9h2v5h5V16z" fill="currentColor"/>
+      </svg>
+    </button>
+  </div>
+  
+  <canvas 
+    bind:this={canvas} 
+    width={width} 
+    height={timelineHeight}
+  ></canvas>
+</div>
 
 <style>
-  .timeline-canvas {
-    display: block;
-    background-color: #3a3a3a;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  .timeline-container {
+    position: relative;
+    overflow: hidden;
+    background-color: #2a2a2a;
+  }
+  
+  .zoom-controls {
+    position: absolute;
+    right: 10px;
+    top: 5px;
+    display: flex;
+    gap: 5px;
+    z-index: 10;
+  }
+  
+  .zoom-button {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .zoom-button:hover {
+    background-color: rgba(0, 0, 0, 0.5);
+  }
+  
+  .zoom-button:active {
+    background-color: rgba(0, 0, 0, 0.7);
   }
 </style>

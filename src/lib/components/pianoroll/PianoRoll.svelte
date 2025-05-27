@@ -31,6 +31,26 @@
   export let editMode = 'select'; // 'select', 'draw', 'erase', etc.
   export let snapSetting = '1/4'; // Default snap setting: 1/4
   
+  // Zoom level (pixels per beat)
+  let pixelsPerBeat = 80; // Default zoom level
+  const MIN_PIXELS_PER_BEAT = 40; // Minimum zoom level
+  const MAX_PIXELS_PER_BEAT = 200; // Maximum zoom level
+  const ZOOM_STEP = 20; // Zoom step size (must be integer to avoid coordinate calculation errors)
+  
+  // Zoom in function
+  function zoomIn() {
+    if (pixelsPerBeat < MAX_PIXELS_PER_BEAT) {
+      pixelsPerBeat += ZOOM_STEP;
+    }
+  }
+  
+  // Zoom out function
+  function zoomOut() {
+    if (pixelsPerBeat > MIN_PIXELS_PER_BEAT) {
+      pixelsPerBeat -= ZOOM_STEP;
+    }
+  }
+  
   // Scroll positions
   let horizontalScroll = 0;
   let verticalScroll = 0;
@@ -59,6 +79,16 @@
     snapSetting = event.detail;
   }
   
+  // Handle zoom changes from toolbar
+  function handleZoomChange(event: CustomEvent) {
+    const { action } = event.detail;
+    if (action === 'zoom-in') {
+      zoomIn();
+    } else if (action === 'zoom-out') {
+      zoomOut();
+    }
+  }
+  
   onMount(() => {
     // Initialization code
   });
@@ -82,6 +112,7 @@
     on:timeSignatureChange={handleTimeSignatureChange}
     on:editModeChange={handleEditModeChange}
     on:snapChange={handleSnapChange}
+    on:zoomChange={handleZoomChange}
   />
   
   <div class="piano-roll-main" style="height: {height - 40}px;">
@@ -93,6 +124,8 @@
         {timeSignature}
         {snapSetting}
         {horizontalScroll}
+        {pixelsPerBeat}
+        on:zoomChange={handleZoomChange}
       />
     </div>
     
@@ -114,6 +147,7 @@
         {snapSetting}
         {horizontalScroll}
         {verticalScroll}
+        {pixelsPerBeat}
         on:scroll={handleGridScroll}
         on:noteChange
       />
