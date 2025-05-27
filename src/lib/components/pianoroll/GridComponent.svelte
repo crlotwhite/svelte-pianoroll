@@ -112,6 +112,10 @@
   let resizedNoteId: string | null = null;
   let creationStartTime = 0;
   let creationPitch = 0;
+  let noteOffsetX = 0; // Offset from mouse to note start for natural movement
+  let noteOffsetY = 0; // Vertical offset for pitch adjustment
+  let accumulatedDeltaX = 0; // Accumulated horizontal mouse movement
+  let accumulatedDeltaY = 0; // Accumulated vertical mouse movement
   
   // Lyric editing state
   let isEditingLyric = false;
@@ -179,10 +183,27 @@
     const x = event.clientX - rect.left + horizontalScroll;
     const y = event.clientY - rect.top + verticalScroll;
     
+    // Store initial position for drag operations
     dragStartX = x;
     dragStartY = y;
     lastMouseX = x;
     lastMouseY = y;
+    
+    // Reset accumulated deltas when starting a new drag operation
+    accumulatedDeltaX = 0;
+    accumulatedDeltaY = 0;
+    
+    // For drag operations, store the offset from the mouse to the note start
+    // This will help position notes more naturally when dragging
+    if (editMode === 'select') {
+      const clickedNote = findNoteAtPosition(x, y);
+      if (clickedNote && Math.abs(x - (clickedNote.start + clickedNote.duration)) >= 10) {
+        // Store the offset from mouse position to note start
+        // This will be used to maintain the same relative position during dragging
+        noteOffsetX = clickedNote.start - x;
+        noteOffsetY = (TOTAL_NOTES - 1 - clickedNote.pitch) * NOTE_HEIGHT - y;
+      }
+    }
     
     // Check if clicking on a note
     const clickedNote = findNoteAtPosition(x, y);
@@ -307,40 +328,51 @@
     }
     
     if (isDragging && draggedNoteId && editMode === 'select') {
-      // Move selected notes
-      notes = notes.map(note => {
-        if (selectedNotes.has(note.id)) {
-          // Apply snap setting to horizontal movement based on current snap
-          let snappedDeltaX;
-          
-          if (snapSetting === 'none') {
-            // Without snap, move freely
-            snappedDeltaX = deltaX;
-          } else {
-            // Parse the snap setting fraction
-            let divisionValue = 4; // Default to quarter note (1/4)
-            const [numerator, denominator] = snapSetting.split('/');
-            if (numerator === '1' && denominator) {
-              divisionValue = parseInt(denominator);
-            }
-            
-            // Apply snap based on beat divisions
-            const gridSize = PIXELS_PER_BEAT / divisionValue;
-            snappedDeltaX = Math.round(deltaX / gridSize) * gridSize;
-          }
-          
-          // Calculate the new start position and snap it to grid
-          const newStart = Math.max(0, note.start + snappedDeltaX);
-          const snappedStart = snapToGrid(newStart);
-          
-          return {
-            ...note,
-            start: snappedStart,
-            pitch: Math.max(0, Math.min(127, note.pitch - Math.round(deltaY / NOTE_HEIGHT)))
-          };
+      // Calculate grid size based on snap setting
+      let gridSize;
+      if (snapSetting === 'none') {
+        // When snap is off, use a small default size for fine control
+        gridSize = PIXELS_PER_BEAT / 32;
+      } else {
+        // Parse the snap setting fraction
+        let divisionValue = 4; // Default to quarter note (1/4)
+        const [numerator, denominator] = snapSetting.split('/');
+        if (numerator === '1' && denominator) {
+          divisionValue = parseInt(denominator);
         }
-        return note;
-      });
+        gridSize = PIXELS_PER_BEAT / divisionValue;
+      }
+      
+      // Accumulate mouse movement to handle slow movements
+      accumulatedDeltaX += deltaX;
+      accumulatedDeltaY += deltaY;
+      
+      // Calculate how many grid cells to move based on accumulated movement
+      const gridMovementX = Math.floor(Math.abs(accumulatedDeltaX) / gridSize) * Math.sign(accumulatedDeltaX);
+      const gridMovementY = Math.floor(Math.abs(accumulatedDeltaY) / NOTE_HEIGHT) * Math.sign(accumulatedDeltaY);
+      
+      // Only move notes if we've accumulated enough movement to cross a grid boundary
+      if (gridMovementX !== 0 || gridMovementY !== 0) {
+        // Move selected notes using grid-relative movements
+        notes = notes.map(note => {
+          if (selectedNotes.has(note.id)) {            
+            // Apply movement in grid units
+            const newStart = Math.max(0, note.start + (gridMovementX * gridSize));
+            const newPitch = Math.max(0, Math.min(127, note.pitch - gridMovementY));
+            
+            return {
+              ...note,
+              start: newStart,
+              pitch: newPitch
+            };
+          }
+          return note;
+        });
+        
+        // Reduce accumulated movement by the amount we just used
+        accumulatedDeltaX -= gridMovementX * gridSize;
+        accumulatedDeltaY -= gridMovementY * NOTE_HEIGHT;
+      }
       
       dispatch('noteChange', { notes });
       drawGrid();
