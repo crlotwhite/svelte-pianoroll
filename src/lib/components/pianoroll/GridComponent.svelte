@@ -104,6 +104,8 @@
   let selectedNotes: Set<string> = new Set();
   let dragStartX = 0;
   let dragStartY = 0;
+  // State for cursor style
+  let isNearNoteEdge = false; // Track if mouse is near a note edge for resize cursor
   let lastMouseX = 0;
   let lastMouseY = 0;
   let draggedNoteId: string | null = null;
@@ -247,9 +249,11 @@
         // Check if clicking near the end of the note (for resizing)
         const noteEndX = clickedNote.start + clickedNote.duration;
         if (Math.abs(x - noteEndX) < 10) {
-          // Start resizing
+          // Start resizing - similar to draw mode
           isResizing = true;
           resizedNoteId = clickedNote.id;
+          // Store the original note start position for absolute resizing calculation
+          creationStartTime = clickedNote.start;
         } else {
           // Select and drag note
           if (!event.shiftKey) {
@@ -289,6 +293,18 @@
     
     lastMouseX = x;
     lastMouseY = y;
+    
+    // Check if mouse is near any note edge for resize cursor
+    if (editMode === 'select' && !isDragging && !isResizing) {
+      const clickedNote = findNoteAtPosition(x, y);
+      if (clickedNote) {
+        const noteEndX = clickedNote.start + clickedNote.duration;
+        // If mouse is within 10 pixels of the note edge, show resize cursor
+        isNearNoteEdge = Math.abs(x - noteEndX) < 10;
+      } else {
+        isNearNoteEdge = false;
+      }
+    }
     
     if (isDragging && draggedNoteId && editMode === 'select') {
       // Move selected notes
@@ -351,21 +367,17 @@
             gridSize = PIXELS_PER_BEAT / divisionValue;
           }
           
-          if (isCreatingNote) {
-            // For note creation, resize from start position to current mouse position
-            const width = Math.max(gridSize, x - creationStartTime);
-            // Snap the width to the grid based on current snap setting
-            const snappedWidth = snapSetting === 'none' 
-              ? width 
-              : Math.round(width / gridSize) * gridSize;
-            newDuration = Math.max(gridSize, snappedWidth);
-          } else {
-            // For regular resizing, add delta to current duration with snap
-            const snappedDeltaX = snapSetting === 'none'
-              ? deltaX
-              : Math.round(deltaX / gridSize) * gridSize;
-            newDuration = Math.max(gridSize, note.duration + snappedDeltaX);
-          }
+          // Use the same approach for both note creation and resize in select mode
+          // Calculate width from the start position to the current mouse position
+          const width = Math.max(gridSize, x - creationStartTime);
+          
+          // Snap the width to the grid based on current snap setting
+          const snappedWidth = snapSetting === 'none' 
+            ? width 
+            : Math.round(width / gridSize) * gridSize;
+          
+          // Ensure minimum size
+          newDuration = Math.max(gridSize, snappedWidth);
           
           return {
             ...note,
@@ -417,6 +429,7 @@
     // Reset interaction states
     isDragging = false;
     isResizing = false;
+    isNearNoteEdge = false; // Reset resize cursor state
     draggedNoteId = null;
     resizedNoteId = null;
     
@@ -789,7 +802,11 @@
     on:mouseup={handleMouseUp}
     on:mouseleave={handleMouseUp}
     on:dblclick={handleDoubleClick}
-    class="grid-canvas"
+    class="grid-canvas 
+      {editMode === 'select' ? 'select-mode' : ''} 
+      {editMode === 'draw' ? 'draw-mode' : ''} 
+      {editMode === 'erase' ? 'erase-mode' : ''} 
+      {isNearNoteEdge || isResizing ? (editMode !== 'draw' ? 'resize-possible' : '') : ''}"
   ></canvas>
   
   {#if isEditingLyric}
@@ -822,7 +839,29 @@
   
   .grid-canvas {
     display: block;
-    cursor: crosshair;
+    cursor: crosshair; /* Default cursor for generic mode */
+  }
+  
+  /* Cursor styles based on edit mode and interactions */
+  .grid-canvas.select-mode {
+    cursor: default; /* Normal cursor for select mode */
+  }
+  
+  .grid-canvas.draw-mode {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' stroke='%23000000' stroke-width='0.5' d='M21.1,2.9c-0.8-0.8-2.1-0.8-2.9,0L6.9,15.2l-1.8,5.3l5.3-1.8L22.6,6.5c0.8-0.8,0.8-2.1,0-2.9L21.1,2.9z M6.7,19.3l1-2.9l1.9,1.9L6.7,19.3z'/%3E%3C/svg%3E") 0 24, auto; /* Pencil cursor for draw mode */
+  }
+  
+  /* Draw mode cursor takes precedence over resize cursor */
+  .grid-canvas.draw-mode.resize-possible {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' stroke='%23000000' stroke-width='0.5' d='M21.1,2.9c-0.8-0.8-2.1-0.8-2.9,0L6.9,15.2l-1.8,5.3l5.3-1.8L22.6,6.5c0.8-0.8,0.8-2.1,0-2.9L21.1,2.9z M6.7,19.3l1-2.9l1.9,1.9L6.7,19.3z'/%3E%3C/svg%3E") 0 24, auto !important; /* Pencil cursor with higher specificity */
+  }
+  
+  .grid-canvas.erase-mode {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' stroke='%23000000' stroke-width='0.5' d='M18.3,8.3L15.7,5.7c-0.4-0.4-1-0.4-1.4,0L3.7,16.3c-0.4,0.4-0.4,1,0,1.4l2.6,2.6c0.4,0.4,1,0.4,1.4,0L18.3,9.7C18.7,9.3,18.7,8.7,18.3,8.3z M6.3,18.9L5.1,17.7l9.9-9.9l1.2,1.2L6.3,18.9z'/%3E%3C/svg%3E") 0 24, auto; /* Eraser cursor for erase mode */
+  }
+  
+  .grid-canvas.resize-possible {
+    cursor: ew-resize; /* Left-right resize cursor when hovering over note edges */
   }
   
   .lyric-input-container {
