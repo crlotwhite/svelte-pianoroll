@@ -115,7 +115,8 @@
       audioEngine.initialize();
       
       // Render the notes to an audio buffer
-      await audioEngine.renderNotes(notes, tempo, totalLengthInBeats);
+      // Pass pixelsPerBeat to ensure proper alignment between waveform and notes
+      await audioEngine.renderNotes(notes, tempo, totalLengthInBeats, pixelsPerBeat);
       
       // Update waveform visualization
       if (waveformComponent) {

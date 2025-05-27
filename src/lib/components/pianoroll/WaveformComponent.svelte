@@ -87,13 +87,16 @@
     const channelData = buffer.getChannelData(0);
     const bufferLength = channelData.length;
     
-    // Calculate scaling factors
-    const secondsPerPixel = (60 / tempo) / pixelsPerBeat;
-    const samplesPerPixel = secondsPerPixel * buffer.sampleRate;
+    // Calculate total duration in seconds
+    const totalSeconds = buffer.duration;
+    // Calculate total length in pixels
+    const totalPixels = (tempo / 60) * pixelsPerBeat * totalSeconds;
+    // Calculate samples per pixel
+    const samplesPerPixel = bufferLength / totalPixels;
     
     // Calculate visible region based on scroll position
     const startSample = Math.floor(horizontalScroll * samplesPerPixel);
-    const endSample = Math.floor((horizontalScroll + width) * samplesPerPixel);
+    const endSample = Math.min(bufferLength, Math.floor((horizontalScroll + width) * samplesPerPixel));
     
     // Draw waveform
     ctx.strokeStyle = WAVEFORM_COLOR;

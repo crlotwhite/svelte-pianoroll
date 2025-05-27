@@ -104,7 +104,8 @@ class AudioEngine {
       velocity: number;
     }>,
     tempo: number,
-    totalLengthInBeats: number
+    totalLengthInBeats: number,
+    pixelsPerBeat: number = 80 // Add pixelsPerBeat parameter with default value
   ): Promise<AudioBuffer> {
     this.initialize();
     if (!this.audioContext) throw new Error('Audio context not initialized');
@@ -126,8 +127,13 @@ class AudioEngine {
     
     // Render each note
     notes.forEach(note => {
-      const noteStartFlicks = beatsToFlicks(note.start / 100, tempo); // Note start is in pixels, convert to beats
-      const noteDurationFlicks = beatsToFlicks(note.duration / 100, tempo); // Note duration is in pixels, convert to beats
+      // Convert from pixels to beats using pixelsPerBeat as the conversion factor
+      const noteStartBeats = note.start / pixelsPerBeat;
+      const noteDurationBeats = note.duration / pixelsPerBeat;
+      
+      // Convert from beats to flicks
+      const noteStartFlicks = beatsToFlicks(noteStartBeats, tempo);
+      const noteDurationFlicks = beatsToFlicks(noteDurationBeats, tempo);
       
       const noteStartTime = flicksToSeconds(noteStartFlicks);
       const noteDuration = flicksToSeconds(noteDurationFlicks);
