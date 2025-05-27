@@ -1,6 +1,7 @@
 <!--
   Main PianoRoll component that integrates all subcomponents.
   This component serves as the container for the entire piano roll interface.
+  Now with playback functionality using Flicks timing, waveform visualization, and playhead.
 -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
@@ -8,6 +9,11 @@
   import KeyboardComponent from './KeyboardComponent.svelte';
   import GridComponent from './GridComponent.svelte';
   import TimeLineComponent from './TimeLineComponent.svelte';
+  import WaveformComponent from './WaveformComponent.svelte';
+  import PlayheadComponent from './PlayheadComponent.svelte';
+  import DebugComponent from './DebugComponent.svelte';
+  import { audioEngine } from '../../utils/audioEngine';
+  import { beatsToFlicks, flicksToBeats, formatFlicks } from '../../utils/flicks';
   
   // Props
   export let width = 1000;  // Total width of the piano roll
@@ -30,6 +36,15 @@
   export let timeSignature = { numerator: 4, denominator: 4 };
   export let editMode = 'select'; // 'select', 'draw', 'erase', etc.
   export let snapSetting = '1/4'; // Default snap setting: 1/4
+  
+  // Playback state
+  let isPlaying = false;
+  let isRendering = false;
+  let currentFlicks = 0;
+  let waveformOpacity = 0.7; // Initial opacity for waveform
+  
+  // References to components
+  let waveformComponent: any; // Reference to waveform component
   
   // Zoom level (pixels per beat)
   let pixelsPerBeat = 80; // Default zoom level
@@ -89,12 +104,104 @@
     }
   }
   
+  // Calculate total length in beats
+  $: totalLengthInBeats = 32 * timeSignature.numerator; // 32 measures
+  
+  // Playback control functions
+  async function renderAudio() {
+    isRendering = true;
+    try {
+      // Initialize audio engine
+      audioEngine.initialize();
+      
+      // Render the notes to an audio buffer
+      await audioEngine.renderNotes(notes, tempo, totalLengthInBeats);
+      
+      // Update waveform visualization
+      if (waveformComponent) {
+        waveformComponent.forceRedraw();
+      }
+    } catch (error) {
+      console.error('Error rendering audio:', error);
+    } finally {
+      isRendering = false;
+    }
+  }
+  
+  function play() {
+    if (isPlaying) return;
+    
+    if (!audioEngine.getRenderedBuffer()) {
+      // Render audio first if not already rendered
+      renderAudio().then(() => {
+        startPlayback();
+      });
+    } else {
+      startPlayback();
+    }
+  }
+  
+  function startPlayback() {
+    audioEngine.play(currentFlicks);
+    isPlaying = true;
+  }
+  
+  function pause() {
+    audioEngine.pause();
+    isPlaying = false;
+  }
+  
+  function stop() {
+    audioEngine.stop();
+    isPlaying = false;
+    currentFlicks = 0;
+  }
+  
+  function togglePlayback() {
+    if (isPlaying) {
+      pause();
+    } else {
+      play();
+    }
+  }
+  
+  // Handle position updates from audio engine
+  function updatePlayheadPosition(flicks: number) {
+    currentFlicks = flicks;
+    
+    // Check if playhead is out of view and scroll to keep it visible
+    const positionInBeats = flicksToBeats(flicks, tempo);
+    const positionInPixels = positionInBeats * pixelsPerBeat;
+    
+    // Auto-scroll if playhead is near the edge of the view
+    const bufferPixels = 100; // Buffer to start scrolling before edge
+    if (positionInPixels > horizontalScroll + width - bufferPixels) {
+      horizontalScroll = Math.max(0, positionInPixels - width / 2);
+    } else if (positionInPixels < horizontalScroll + bufferPixels) {
+      horizontalScroll = Math.max(0, positionInPixels - bufferPixels);
+    }
+  }
+  
+  // Handle note changes to re-render audio
+  function handleNoteChange(event: CustomEvent) {
+    notes = event.detail.notes;
+    // Re-render audio when notes change
+    renderAudio();
+  }
+  
   onMount(() => {
-    // Initialization code
+    // Set up playhead position update callback
+    audioEngine.setPlayheadUpdateCallback(updatePlayheadPosition);
+    
+    // Initial audio render
+    if (notes.length > 0) {
+      renderAudio();
+    }
   });
   
   onDestroy(() => {
-    // Cleanup code
+    // Clean up audio engine resources
+    audioEngine.dispose();
   });
 </script>
 
@@ -108,11 +215,16 @@
     {timeSignature}
     {editMode}
     {snapSetting}
+    {isPlaying}
     on:tempoChange={(e) => tempo = e.detail}
     on:timeSignatureChange={handleTimeSignatureChange}
     on:editModeChange={handleEditModeChange}
     on:snapChange={handleSnapChange}
     on:zoomChange={handleZoomChange}
+    on:play={play}
+    on:pause={pause}
+    on:stop={stop}
+    on:togglePlay={togglePlayback}
   />
   
   <div class="piano-roll-main" style="height: {height - 40}px;">
@@ -137,23 +249,58 @@
         {verticalScroll}
       />
       
-      <GridComponent
-        width={width - keyboardWidth}
-        height={height - 40 - timelineHeight}
-        {notes}
-        {tempo}
-        {timeSignature}
-        {editMode}
-        {snapSetting}
-        {horizontalScroll}
-        {verticalScroll}
-        {pixelsPerBeat}
-        on:scroll={handleGridScroll}
-        on:noteChange
-      />
+      <div class="grid-container" style="position: relative;">
+        <!-- Waveform positioned below the grid but above the grid lines -->
+        <WaveformComponent
+          bind:this={waveformComponent}
+          width={width - keyboardWidth}
+          height={(height - 40 - timelineHeight) / 2}
+          {horizontalScroll}
+          {pixelsPerBeat}
+          {tempo}
+          opacity={waveformOpacity}
+          style="top: {(height - 40 - timelineHeight) / 2}px;"
+        />
+        
+        <!-- Grid component containing notes and grid lines -->
+        <GridComponent
+          width={width - keyboardWidth}
+          height={height - 40 - timelineHeight}
+          {notes}
+          {tempo}
+          {timeSignature}
+          {editMode}
+          {snapSetting}
+          {horizontalScroll}
+          {verticalScroll}
+          {pixelsPerBeat}
+          on:scroll={handleGridScroll}
+          on:noteChange={handleNoteChange}
+        />
+        
+        <!-- Playhead position indicator -->
+        <PlayheadComponent 
+          width={width - keyboardWidth}
+          height={height - 40 - timelineHeight}
+          {horizontalScroll}
+          {pixelsPerBeat}
+          {tempo}
+          {currentFlicks}
+          {isPlaying}
+        />
+      </div>
     </div>
   </div>
 </div>
+
+<!-- Debug component for Flicks timing information -->
+<DebugComponent
+  {currentFlicks}
+  {tempo}
+  {notes}
+  {isPlaying}
+  {isRendering}
+/>
 
 <style>
   .piano-roll-container {

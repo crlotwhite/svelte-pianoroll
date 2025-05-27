@@ -1,5 +1,5 @@
 <!--
-  Toolbar component for controlling tempo, time signature, and edit mode.
+  Toolbar component for controlling tempo, time signature, edit mode, and playback.
 -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
@@ -8,6 +8,7 @@
   export let timeSignature = { numerator: 4, denominator: 4 };
   export let editMode = 'select'; // 'select', 'draw', 'erase', etc.
   export let snapSetting = '1/4'; // Default snap setting
+  export let isPlaying = false; // Playback status
   
   const dispatch = createEventDispatcher();
   
@@ -42,9 +43,45 @@
     const newSnapSetting = (event.target as HTMLSelectElement).value;
     dispatch('snapChange', newSnapSetting);
   }
+  
+  // Playback control functions
+  function play() {
+    dispatch('play');
+  }
+  
+  function pause() {
+    dispatch('pause');
+  }
+  
+  function stop() {
+    dispatch('stop');
+  }
+  
+  function togglePlay() {
+    dispatch('togglePlay');
+  }
 </script>
 
 <div class="toolbar">
+  <!-- Playback controls -->
+  <div class="section playback-section">
+    <button 
+      class="playback-button" 
+      on:click={togglePlay} 
+      title={isPlaying ? 'Pause' : 'Play'}
+    >
+      <span class="icon">{isPlaying ? '⏸️' : '▶️'}</span>
+    </button>
+    
+    <button 
+      class="playback-button" 
+      on:click={stop} 
+      title="Stop"
+    >
+      <span class="icon">⏹️</span>
+    </button>
+  </div>
+  
   <div class="section time-section">
     <div class="tempo-control">
       <label for="tempo-input">Tempo</label>
@@ -169,7 +206,7 @@
     margin: 0 4px;
   }
   
-  .edit-mode-section {
+  .edit-mode-section, .playback-section {
     display: flex;
     align-items: center;
   }
@@ -179,6 +216,26 @@
     font-size: 12px;
     color: #ccc;
     margin-right: 8px;
+  }
+  
+  .playback-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #2c2c2c;
+    border: 1px solid #555;
+    border-radius: 3px;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 4px 8px;
+    margin-right: 8px;
+    min-width: 30px;
+    height: 30px;
+  }
+  
+  .playback-button:hover {
+    background-color: #3c3c3c;
   }
   
   .edit-mode-buttons {
