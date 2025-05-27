@@ -13,6 +13,7 @@
   export let pixelsPerBeat = 80;
   export let tempo = 120;
   export let opacity = 0.7;
+  export let top = 0; // Add position prop
   
   // Canvas references
   let canvasElement: HTMLCanvasElement;
@@ -280,7 +281,7 @@
   }
 </script>
 
-<div class="waveform-container" style="opacity: {opacity};">
+<div class="waveform-container" style="opacity: {opacity}; top: {top}px;">
   <canvas 
     bind:this={canvasElement} 
     width={width} 
