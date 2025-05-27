@@ -104,8 +104,6 @@
   let selectedNotes: Set<string> = new Set();
   let dragStartX = 0;
   let dragStartY = 0;
-  // State for cursor style
-  let isNearNoteEdge = false; // Track if mouse is near a note edge for resize cursor
   let lastMouseX = 0;
   let lastMouseY = 0;
   let draggedNoteId: string | null = null;
@@ -116,6 +114,18 @@
   let noteOffsetY = 0; // Vertical offset for pitch adjustment
   let accumulatedDeltaX = 0; // Accumulated horizontal mouse movement
   let accumulatedDeltaY = 0; // Accumulated vertical mouse movement
+  let isNearNoteEdge = false; // Track if mouse is near a note edge for resize cursor
+  
+  // Current mouse position info (for position display)
+  let currentMousePosition = {
+    x: 0,
+    y: 0,
+    measure: 0,
+    beat: 0,
+    tick: 0,
+    pitch: 0,
+    noteName: ''
+  }
   
   // Lyric editing state
   let isEditingLyric = false;
@@ -314,6 +324,9 @@
     
     lastMouseX = x;
     lastMouseY = y;
+    
+    // Update mouse position information
+    updateMousePositionInfo(x, y);
     
     // Check if mouse is near any note edge for resize cursor
     if (editMode === 'select' && !isDragging && !isResizing) {
@@ -558,6 +571,99 @@
     });
   }
   
+  // Coordinate conversion utility functions
+  
+  // Convert X coordinate to measure, beat, tick information
+  function xToMeasureInfo(x: number) {
+    // Calculate measure
+    const measureIndex = Math.floor(x / pixelsPerMeasure);
+    
+    // Calculate beat within measure
+    const xWithinMeasure = x - (measureIndex * pixelsPerMeasure);
+    const beatWithinMeasure = Math.floor(xWithinMeasure / PIXELS_PER_BEAT);
+    
+    // Calculate tick within beat (based on current snap setting)
+    let divisionValue = 4; // Default to quarter note (1/4)
+    if (snapSetting !== 'none') {
+      const [numerator, denominator] = snapSetting.split('/');
+      if (numerator === '1' && denominator) {
+        divisionValue = parseInt(denominator);
+      }
+    }
+    
+    const ticksPerBeat = divisionValue;
+    const xWithinBeat = xWithinMeasure - (beatWithinMeasure * PIXELS_PER_BEAT);
+    const tickWithinBeat = Math.floor((xWithinBeat / PIXELS_PER_BEAT) * ticksPerBeat);
+    
+    return {
+      measure: measureIndex + 1, // 1-based measure number
+      beat: beatWithinMeasure + 1, // 1-based beat number
+      tick: tickWithinBeat,
+      measureFraction: `${beatWithinMeasure + 1}/${ticksPerBeat}` // e.g. 2/4 for second beat in 4/4
+    };
+  }
+  
+  // Convert measure, beat, tick to X coordinate
+  function measureInfoToX(measure: number, beat: number, tick: number, ticksPerBeat: number) {
+    // Convert to 0-based indices
+    const measureIndex = measure - 1;
+    const beatIndex = beat - 1;
+    
+    // Calculate x position
+    const measureX = measureIndex * pixelsPerMeasure;
+    const beatX = beatIndex * PIXELS_PER_BEAT;
+    const tickX = (tick / ticksPerBeat) * PIXELS_PER_BEAT;
+    
+    return measureX + beatX + tickX;
+  }
+  
+  // Convert Y coordinate to MIDI pitch
+  function yToPitch(y: number) {
+    const pitchIndex = Math.floor(y / NOTE_HEIGHT);
+    const pitch = TOTAL_NOTES - 1 - pitchIndex;
+    
+    // Convert MIDI pitch to note name (e.g. C4, F#5)
+    const noteName = getMidiNoteName(pitch);
+    
+    return { pitch, noteName };
+  }
+  
+  // Convert MIDI pitch to Y coordinate
+  function pitchToY(pitch: number) {
+    return (TOTAL_NOTES - 1 - pitch) * NOTE_HEIGHT;
+  }
+  
+  // Get note name from MIDI pitch
+  function getMidiNoteName(pitch: number) {
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const noteName = noteNames[pitch % 12];
+    const octave = Math.floor(pitch / 12) - 1; // MIDI standard: C4 is 60
+    return `${noteName}${octave}`;
+  }
+  
+  // Update mouse position info
+  function updateMousePositionInfo(x: number, y: number) {
+    // Get measure, beat, tick info from x coordinate
+    const measureInfo = xToMeasureInfo(x);
+    
+    // Get pitch info from y coordinate
+    const pitchInfo = yToPitch(y);
+    
+    // Update current mouse position
+    currentMousePosition = {
+      x,
+      y,
+      measure: measureInfo.measure,
+      beat: measureInfo.beat,
+      tick: measureInfo.tick,
+      pitch: pitchInfo.pitch,
+      noteName: pitchInfo.noteName
+    };
+    
+    // Emit position info event for parent components to use
+    dispatch('positionInfo', currentMousePosition);
+  }
+  
   // Snap value to grid based on selected snap setting
   function snapToGrid(value: number) {
     // If snap is set to 'none', return the exact value
@@ -799,6 +905,20 @@
     
     // Draw initial grid
     drawGrid();
+    
+    // Set initial mouse position info for the center of the viewport
+    const centerX = horizontalScroll + width / 2;
+    const centerY = verticalScroll + height / 2;
+    updateMousePositionInfo(centerX, centerY);
+    
+    // Expose coordinate conversion utilities to parent components
+    dispatch('utilsReady', {
+      xToMeasureInfo,
+      measureInfoToX,
+      yToPitch,
+      pitchToY,
+      getMidiNoteName
+    });
   });
   
   // Update when props change
@@ -861,12 +981,44 @@
       />
     </div>
   {/if}
+  
+  <!-- Position info display -->
+  <div class="position-info" aria-live="polite">
+    <div class="position-measure">Measure: {currentMousePosition.measure}, Beat: {currentMousePosition.beat}, Tick: {currentMousePosition.tick}</div>
+    <div class="position-note">Note: {currentMousePosition.noteName} (MIDI: {currentMousePosition.pitch})</div>
+  </div>
 </div>
 
 <style>
   .grid-container {
     position: relative;
     height: 100%;
+  }
+  
+  .position-info {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background-color: rgba(0, 0, 0, 0.75);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: 'Roboto Mono', monospace, sans-serif;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    pointer-events: none; /* Allow clicks to pass through */
+    z-index: 10;
+    transition: opacity 0.2s ease;
+  }
+  
+  .position-measure {
+    margin-bottom: 3px;
+    opacity: 0.9;
+  }
+  
+  .position-note {
+    font-weight: 500;
+    color: #90caf9;
   }
   
   .grid-canvas {
