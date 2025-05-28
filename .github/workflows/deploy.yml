@@ -37,7 +37,7 @@ jobs:
         run: npm ci
       
       - name: Install adapter-static
-        run: npm install --save-dev @sveltejs/adapter-static
+        run: npm install --save-dev @sveltejs/adapter-static@1.0.0-next.50
       
       - name: Update svelte.config.js for static adapter
         run: |
