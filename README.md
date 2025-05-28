@@ -1,38 +1,67 @@
-# create-svelte
+# Svelte Piano Roll
 
-Everything you need to build a Svelte project, powered by [`create-svelte`](https://github.com/sveltejs/kit/tree/master/packages/create-svelte).
+Interactive piano roll editor built with Svelte, featuring real-time audio playback and waveform visualization.
 
-## Creating a project
+## Features
 
-If you're seeing this, you've probably already done this step. Congrats!
+- Interactive piano roll grid with note editing
+- Real-time audio playback using Web Audio API
+- Waveform visualization for audio feedback
+- Precise timing using Facebook's Flicks system
+- Playhead tracking during playback
+- Play/pause/stop controls in the toolbar
+- Debug information display for timing data
+
+## Architecture
+
+The piano roll is structured in layers:
+
+1. **Top Layer**: Playhead and playback controls
+2. **Middle Layer**: Notes and interactive elements
+3. **Lower Layer**: Waveform visualization (semi-transparent)
+4. **Bottom Layer**: Grid and reference lines
+
+## Getting Started
+
+Clone this repository and install dependencies:
 
 ```bash
-# create a new project in the current directory
-npm create svelte@latest
+git clone https://github.com/crlotwhite/svelte-pianoroll.git
+cd svelte-pianoroll
+npm install
 
-# create a new project in my-app
-npm create svelte@latest my-app
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
+# Start the development server
 npm run dev -- --open
 ```
 
-## Building
+## Components
 
-To create a production version of your app:
+- **PianoRoll**: Main component that orchestrates all piano roll functionality
+- **GridComponent**: Renders the background grid with time and pitch markings
+- **WaveformComponent**: Displays audio visualization below the notes layer
+- **PlayheadComponent**: Shows current playback position
+- **DebugComponent**: Displays timing information for development
+- **Toolbar**: Contains playback controls (play/pause/stop)
+
+## Audio Engine
+
+The audio engine uses the Web Audio API to synthesize and play notes in real-time, with precise timing managed using Facebook's Flicks system, which provides sub-millisecond accuracy.
+
+## Building and Deployment
+
+Build a production version:
 
 ```bash
 npm run build
+npm run preview
 ```
 
-You can preview the production build with `npm run preview`.
+## License
 
-> To deploy your app, you may need to install an [adapter](https://kit.svelte.dev/docs/adapters) for your target environment.
+MIT
+
+## Acknowledgements
+
+- [Svelte](https://svelte.dev/) - Frontend framework
+- [Facebook's Flicks](https://github.com/OculusVR/Flicks) - Timing system
+- [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API) - Audio processing
