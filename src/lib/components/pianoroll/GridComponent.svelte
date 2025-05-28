@@ -26,6 +26,8 @@
   export let snapSetting = '1/8';  // Snap grid setting (1/1, 1/2, 1/4, 1/8, 1/16, 1/32, none)
   export let horizontalScroll = 0;  // Horizontal scroll position
   export let verticalScroll = 0;  // Vertical scroll position
+  export let currentFlicks = 0;  // Current playback position in flicks (added for playhead tracking)
+  export let isPlaying = false;  // Whether playback is active
   
   // Constants
   const NOTE_HEIGHT = 20;  // Height of a note row (same as white key height)
@@ -939,6 +941,11 @@
     }
   }
   
+  // Re-render grid when playhead position changes during playback
+  $: if (isPlaying && currentFlicks) {
+    drawGrid();
+  }
+  
   // Redraw when time signature changes
   $: if (timeSignature && ctx && canvas) {
     // This will reactively update when timeSignature.numerator or denominator changes
@@ -952,27 +959,38 @@
   }
   
   // Redraw and scale notes when zoom level (pixelsPerBeat) changes
-  $: if (pixelsPerBeat && ctx && canvas) {
-    // Scale notes based on zoom change ratio
-    if (previousPixelsPerBeat > 0 && pixelsPerBeat !== previousPixelsPerBeat) {
-      const zoomRatio = pixelsPerBeat / previousPixelsPerBeat;
-      
-      // Scale each note's start position and duration
-      notes = notes.map(note => ({
-        ...note,
-        start: note.start * zoomRatio,
-        duration: note.duration * zoomRatio
-      }));
-      
-      // Update zoom tracking
+  $: {
+    if (pixelsPerBeat !== previousPixelsPerBeat) {
+      // Scale existing notes when zoom level changes
+      scaleNotesForZoom();
       previousPixelsPerBeat = pixelsPerBeat;
-      
-      // Notify parent of the note changes
-      dispatch('noteChange', { notes });
     }
-    
-    // This will reactively update when pixelsPerBeat changes
     drawGrid();
+  }
+  
+  // Re-render grid when playhead position changes during playback
+  $: if (isPlaying && currentFlicks) {
+    // This reactive statement will trigger a redraw whenever currentFlicks changes during playback
+    drawGrid();
+  }
+  
+  // Scale the position of notes when the zoom level (pixelsPerBeat) changes
+  function scaleNotesForZoom() {
+    if (notes.length === 0 || !previousPixelsPerBeat) return;
+    
+    const scaleFactor = pixelsPerBeat / previousPixelsPerBeat;
+    
+    // Scale the start positions of all notes
+    notes = notes.map(note => ({
+      ...note,
+      // Maintain relative position by scaling the start time
+      start: note.start * scaleFactor,
+      // Scale the duration proportionally
+      duration: note.duration * scaleFactor
+    }));
+    
+    // Notify parent of note changes
+    dispatch('noteChange', { notes });
   }
 </script>
 

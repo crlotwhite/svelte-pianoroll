@@ -279,6 +279,8 @@
           {horizontalScroll}
           {verticalScroll}
           {pixelsPerBeat}
+          {currentFlicks}
+          {isPlaying}
           on:scroll={handleGridScroll}
           on:noteChange={handleNoteChange}
         />

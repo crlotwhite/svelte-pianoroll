@@ -55,7 +55,7 @@ class AudioEngine {
   
   // Create a basic synth tone for a note
   private createNoteTone(
-    ctx: AudioContext,
+    ctx: BaseAudioContext, // Changed from AudioContext to BaseAudioContext to work with both regular and offline contexts
     time: number,
     duration: number,
     frequency: number,
