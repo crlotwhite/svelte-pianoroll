@@ -9,7 +9,7 @@
       duration: 80, // Quarter note
       pitch: 60, // Middle C
       velocity: 100,
-      lyric: '안녕'
+      lyric: '라'
     },
     {
       id: 'note-2',
@@ -17,7 +17,7 @@
       duration: 160, // Half note
       pitch: 64, // E
       velocity: 90,
-      lyric: '하세요'
+      lyric: '라'
     },
     {
       id: 'note-3',
@@ -25,7 +25,7 @@
       duration: 80, // Quarter note
       pitch: 67, // G
       velocity: 95,
-      lyric: '반가워요'
+      lyric: '라'
     }
   ];
 </script>
